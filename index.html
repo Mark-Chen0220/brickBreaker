@@ -564,19 +564,35 @@
     
     function setupDataChannel(channel) {
       dataChannel = channel;
+    
       channel.onopen = () => {
         console.log("Data channel open");
-        if (!isHost) startOnlineGame();
+    
+        if (!isHost) {
+          // Joiner notifies host that connection succeeded
+          dataChannel.send(JSON.stringify({ type: "joiner_connected" }));
+          startOnlineGame(); // Already part of your current flow
+        } else {
+          // Host: you might want to show "Waiting..." until message arrives
+          document.getElementById('hostStatus').textContent = "Waiting for joiner...";
+        }
       };
     
       channel.onmessage = e => {
         const data = JSON.parse(e.data);
         console.log("Received:", data);
-        if (data.type === "keydown") {
+    
+        if (isHost && data.type === "joiner_connected") {
+          // Host detects joiner connection
+          document.getElementById('hostStatus').textContent = "Joiner connected!";
+          // Optionally, call startOnlineGame() here instead of auto-starting
+          startOnlineGame(); // If host should only start after joiner connects
+        } else if (data.type === "keydown") {
           keys[data.key.toLowerCase()] = true;
-        }
+        }    
       };
     }
+
     
     function startOnlineGame() {
       console.log("Starting Online Game!");
