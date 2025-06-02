@@ -709,9 +709,8 @@
 
     
     function startOnlineGame() {
-      if (isHost && !mode) {
-        // Host needs to choose mode first
-        document.getElementById('modeSelectContainer').style.display = 'block';
+      if ((isHost && !mode) || (!isHost && typeof mode === 'undefined')) {
+        showErrorState("Game mode not initialized");
         return;
       }
     
@@ -792,12 +791,37 @@
     }
 
     function selectOnlineMode(selectedMode) {
+      const sessionId = Date.now();
       mode = selectedMode;
-      if (dataChannel?.readyState === "open") {
-        dataChannel.send(JSON.stringify({ type: "set_mode", mode }));
-      }
-      startOnlineGame(); // Now we continue
+      dataChannel.send(JSON.stringify({
+        type: "set_mode",
+        mode,
+        sessionId
+      }));
+      
+      // Wait for acknowledgment
+      const ackHandler = e => {
+        const data = JSON.parse(e.data);
+        if (data.type === "mode_ack" && data.sessionId === sessionId) {
+          dataChannel.removeEventListener('message', ackHandler);
+          startOnlineGame();
+        }
+      };
+      dataChannel.addEventListener('message', ackHandler);
     }
+    // Joiner-side modification
+    channel.onmessage = e => {
+      const data = JSON.parse(e.data);
+      if (data.type === "set_mode") {
+        mode = data.mode;
+        dataChannel.send(JSON.stringify({
+          type: "mode_ack",
+          sessionId: data.sessionId
+        }));
+        startOnlineGame();
+      }
+    };
+    
   </script>
 </body>
 </html>
