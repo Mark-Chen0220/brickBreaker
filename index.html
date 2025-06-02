@@ -457,10 +457,47 @@
         localPlayerNum = 0;
         pin = ('' + Math.floor(1000 + Math.random() * 9000));
         document.getElementById('pinDisplay').textContent = pin;
+        setupConnectionAsHost();
       } else {
         isHost = false;
         localPlayerNum = 1;
       }
+    }
+    async function setupConnectionAsHost() {
+      // 1. Create the RTCPeerConnection
+      peerConnection = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    
+      // 2. Create a data channel for communication
+      dataChannel = peerConnection.createDataChannel("game");
+      setupDataChannel(dataChannel);
+    
+      // 3. Handle ICE candidates from the host
+      peerConnection.onicecandidate = e => {
+        if (e.candidate) {
+          db.ref(`rooms/${pin}/hostCandidates`).push(JSON.stringify(e.candidate));
+        }
+      };
+    
+      // 4. Create the WebRTC offer and set it as the local description
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+    
+      // 5. Write the offer to Firebase under the new room
+      await db.ref(`rooms/${pin}/offer`).set(JSON.stringify(offer));
+    
+      // 6. Listen for the answer from the joiner
+      db.ref(`rooms/${pin}/answer`).on('value', async snapshot => {
+        if (snapshot.exists()) {
+          const answer = JSON.parse(snapshot.val());
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+        }
+      });
+    
+      // 7. Listen for ICE candidates from the joiner
+      db.ref(`rooms/${pin}/joinerCandidates`).on('child_added', snapshot => {
+        const candidate = JSON.parse(snapshot.val());
+        peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      });
     }
     function copyPin() {
       navigator.clipboard.writeText(pin);
