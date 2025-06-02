@@ -59,6 +59,11 @@
       <div id="joinStatus"></div>
     </div>
   </div>
+  <div id="modeSelectContainer">
+    <p>Select Game Mode:</p>
+    <button onclick="selectOnlineMode('online-collab')">Collaborative</button>
+    <button onclick="selectOnlineMode('online-comp')">Competitive</button>
+  </div>
   <div id="controls">
     <b>Controls:</b><br>
     Player 1: <b>Left/Right Arrows</b> &nbsp; | &nbsp; Player 2: <b>A/D</b>
@@ -138,41 +143,87 @@
       document.getElementById('controls').style.display = 'block';
       canvas.style.display = 'block';
       document.getElementById('online-section').style.display = 'none';
+      document.getElementById('modeSelectContainer').style.display = 'none';
       resetGameVars();
-      if(mode === 'single') {
-        paddles.push(createPaddle((canvas.width-paddleWidth)/2, canvas.height-30));
-        balls.push(createBall(canvas.width/2, canvas.height-45));
+    
+      if (mode === 'single') {
+        paddles.push(createPaddle((canvas.width - paddleWidth) / 2, canvas.height - 30));
+        balls.push(createBall(canvas.width / 2, canvas.height - 45));
         bricks = createBricks(canvas.width);
         scores.push(0);
         lives.push(maxLives);
         running = true;
         requestAnimationFrame(draw);
       }
-      else if(mode === 'local-collab') {
-        paddles.push(createPaddle((canvas.width-paddleWidth)/2+paddleWidth, canvas.height-30));
-        paddles.push(createPaddle((canvas.width-paddleWidth)/2-paddleWidth, canvas.height-30));
-        balls.push(createBall(canvas.width/2, canvas.height/2));
+      else if (mode === 'local-collab') {
+        paddles.push(createPaddle((canvas.width - paddleWidth) / 2 + paddleWidth, canvas.height - 30));
+        paddles.push(createPaddle((canvas.width - paddleWidth) / 2 - paddleWidth, canvas.height - 30));
+        balls.push(createBall(canvas.width / 2, canvas.height / 2));
         bricks = createBricks(canvas.width);
         scores.push(0);
         lives.push(maxLives);
         running = true;
         requestAnimationFrame(draw);
       }
-      else if(mode === 'local-comp') {
-        // Player 1 (left)
-        paddles.push(createPaddle((canvas.width/2 - paddleWidth)/2, canvas.height-30));
-        balls.push(createBall(canvas.width/4, canvas.height-45));
-        bricks.push(createBricks(canvas.width/2));
+      else if (mode === 'local-comp') {
+        paddles.push(createPaddle((canvas.width / 2 - paddleWidth) / 2, canvas.height - 30));
+        balls.push(createBall(canvas.width / 4, canvas.height - 45));
+        bricks.push(createBricks(canvas.width / 2));
         scores.push(0);
         lives.push(maxLives);
-        // Player 2 (right)
-        paddles.push(createPaddle(canvas.width/2 + (canvas.width/2 - paddleWidth)/2, canvas.height-30));
-        balls.push(createBall(canvas.width*3/4, canvas.height-45));
-        bricks.push(createBricks(canvas.width/2));
+    
+        paddles.push(createPaddle(canvas.width / 2 + (canvas.width / 2 - paddleWidth) / 2, canvas.height - 30));
+        balls.push(createBall(canvas.width * 3 / 4, canvas.height - 45));
+        bricks.push(createBricks(canvas.width / 2));
         scores.push(0);
         lives.push(maxLives);
         running = true;
         requestAnimationFrame(draw);
+      }
+      else if (mode === 'online-collab') {
+        if (isHost) {
+          paddles = [
+            createPaddle((canvas.width - paddleWidth) / 2 + paddleWidth, canvas.height - 30),  // Host
+            createPaddle((canvas.width - paddleWidth) / 2 - paddleWidth, canvas.height - 30)   // Joiner
+          ];
+          balls = [createBall(canvas.width / 2, canvas.height / 2)];
+          bricks = createBricks(canvas.width);
+          scores = [0];
+          lives = [maxLives];
+          running = true;
+          requestAnimationFrame(draw);
+        }
+        // Joiner waits for game state from host
+      }
+      else if (mode === 'online-comp') {
+        if (isHost) {
+          paddles = [
+            createPaddle((canvas.width / 2 - paddleWidth) / 2, canvas.height - 30),             // Host
+            createPaddle(canvas.width / 2 + (canvas.width / 2 - paddleWidth) / 2, canvas.height - 30) // Joiner
+          ];
+          balls = [
+            createBall(canvas.width / 4, canvas.height - 45),
+            createBall(canvas.width * 3 / 4, canvas.height - 45)
+          ];
+          bricks = [
+            createBricks(canvas.width / 2),
+            createBricks(canvas.width / 2)
+          ];
+          scores = [0, 0];
+          lives = [maxLives, maxLives];
+          running = true;
+          requestAnimationFrame(draw);
+        }
+        // Joiner waits for game state from host
+      }
+    
+      // Only joiner needs to send key events
+      if (!isHost && mode.startsWith('online')) {
+        document.addEventListener('keydown', e => {
+          if (dataChannel?.readyState === "open") {
+            dataChannel.send(JSON.stringify({ type: "keydown", key: e.key }));
+          }
+        });
       }
     }
 
@@ -581,33 +632,60 @@
       channel.onmessage = e => {
         const data = JSON.parse(e.data);
         console.log("Received:", data);
-    
+      
         if (isHost && data.type === "joiner_connected") {
-          // Host detects joiner connection
           document.getElementById('hostStatus').textContent = "Joiner connected!";
-          // Optionally, call startOnlineGame() here instead of auto-starting
-          startOnlineGame(); // If host should only start after joiner connects
+          document.getElementById('modeSelectContainer').style.display = 'block';
+        } else if (!isHost && data.type === "set_mode") {
+          mode = data.mode;
+          startOnlineGame(); // Start as joiner
         } else if (data.type === "keydown") {
           keys[data.key.toLowerCase()] = true;
-        }    
+        }
       };
     }
 
     
     function startOnlineGame() {
-      console.log("Starting Online Game!");
-      document.getElementById('online-section').style.display = 'none';
-      canvas.style.display = 'block';
-      document.getElementById('controls').style.display = 'block';
-      mode = 'online';
-      resetGameVars();
+      if (isHost && !mode) {
+        // Host needs to choose mode first
+        document.getElementById('modeSelectContainer').style.display = 'block';
+        return;
+      }
     
-      paddles.push(createPaddle((canvas.width - paddleWidth) / 2, canvas.height - 30));
-      balls.push(createBall(canvas.width / 2, canvas.height - 45));
-      bricks = createBricks(canvas.width);
-      scores.push(0);
-      lives.push(maxLives);
+      console.log("Starting Online Game!");
+    
+      document.getElementById('online-section').style.display = 'none';
+      document.getElementById('modeSelectContainer').style.display = 'none';
+      document.getElementById('controls').style.display = 'block';
+      canvas.style.display = 'block';
+    
+      resetGameVars();
       running = true;
+    
+      if (mode === 'online-collab') {
+        paddles = [
+          createPaddle((canvas.width - paddleWidth) / 2, canvas.height - 30),
+          createPaddle((canvas.width - paddleWidth) / 2, 30)
+        ];
+        balls = [createBall(canvas.width / 2, canvas.height / 2)];
+        bricks = createBricks(canvas.width);
+        scores = [0];
+        lives = [maxLives];
+      } else if (mode === 'online-comp') {
+        paddles = [
+          createPaddle((canvas.width - paddleWidth) / 2, canvas.height - 30),
+          createPaddle((canvas.width - paddleWidth) / 2, 30)
+        ];
+        balls = [
+          createBall(canvas.width / 4, canvas.height / 2),
+          createBall((3 * canvas.width) / 4, canvas.height / 2)
+        ];
+        bricks = [createBricks(canvas.width / 2), createBricks(canvas.width / 2)];
+        scores = [0, 0];
+        lives = [maxLives, maxLives];
+      }
+    
       requestAnimationFrame(draw);
     
       document.addEventListener('keydown', e => {
@@ -617,6 +695,13 @@
       });
     }
 
+    function selectOnlineMode(selectedMode) {
+      mode = selectedMode;
+      if (dataChannel?.readyState === "open") {
+        dataChannel.send(JSON.stringify({ type: "set_mode", mode }));
+      }
+      startOnlineGame(); // Now we continue
+    }
   </script>
 </body>
 </html>
