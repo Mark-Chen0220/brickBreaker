@@ -727,8 +727,8 @@
     
       if (mode === 'online-collab') {
         paddles = [
-          createPaddle((canvas.width - paddleWidth) / 2, canvas.height - 30),
-          createPaddle((canvas.width - paddleWidth) / 2, 30)
+          createPaddle((canvas.width - paddleWidth) / 2 + paddleWidth, canvas.height - 30),
+          createPaddle((canvas.width - paddleWidth) / 2 - paddleWidth, canvas.height - 30)
         ];
         balls = [createBall(canvas.width / 2, canvas.height / 2)];
         bricks = createBricks(canvas.width);
@@ -737,7 +737,7 @@
       } else if (mode === 'online-comp') {
         paddles = [
           createPaddle((canvas.width - paddleWidth) / 2, canvas.height - 30),
-          createPaddle((canvas.width - paddleWidth) / 2, 30)
+          createPaddle((canvas.width - paddleWidth) / 2, canvas.height - 30)
         ];
         balls = [
           createBall(canvas.width / 4, canvas.height / 2),
