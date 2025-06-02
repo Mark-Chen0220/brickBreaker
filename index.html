@@ -725,46 +725,28 @@
       running = true;
     
       if (mode === 'online-collab') {
-        paddles = [
-          createPaddle((canvas.width - paddleWidth) / 2 + paddleWidth, canvas.height - 30),
-          createPaddle((canvas.width - paddleWidth) / 2 - paddleWidth, canvas.height - 30)
-        ];
-        balls = [createBall(canvas.width / 2, canvas.height / 2)];
+        paddles.push(createPaddle((canvas.width - paddleWidth) / 2 + paddleWidth, canvas.height - 30));
+        paddles.push(createPaddle((canvas.width - paddleWidth) / 2 - paddleWidth, canvas.height - 30));
+        balls.push(createBall(canvas.width / 2, canvas.height / 2));
         bricks = createBricks(canvas.width);
-        scores = [0];
-        lives = [maxLives];
+        scores.push(0);
+        lives.push(maxLives);
+        running = true;
+        requestAnimationFrame(draw);
       } else if (mode === 'online-comp') {
-        paddles = [
-          createPaddle((canvas.width - paddleWidth) / 2, canvas.height - 30),
-          createPaddle((canvas.width - paddleWidth) / 2, canvas.height - 30)
-        ];
-        balls = [
-          createBall(canvas.width / 4, canvas.height / 2),
-          createBall((3 * canvas.width) / 4, canvas.height / 2)
-        ];
-        bricks = [createBricks(canvas.width / 2), createBricks(canvas.width / 2)];
-        scores = [0, 0];
-        lives = [maxLives, maxLives];
-      }
+        paddles.push(createPaddle((canvas.width / 2 - paddleWidth) / 2, canvas.height - 30));
+        balls.push(createBall(canvas.width / 4, canvas.height - 45));
+        bricks.push(createBricks(canvas.width / 2));
+        scores.push(0);
+        lives.push(maxLives);
     
-      requestAnimationFrame(draw);
-    
-      document.addEventListener('keydown', e => {
-        if (dataChannel?.readyState === "open") {
-          dataChannel.send(JSON.stringify({ type: "keydown", key: e.key }));
-        }
-      });
-
-      // Initialize state for joiner
-      if (!isHost) {
-        paddles = [
-          createPaddle(canvas.width/2, canvas.height-30),
-          createPaddle(canvas.width/2, 30)
-        ];
-        balls = [createBall(canvas.width/2, canvas.height/2)];
-        bricks = createBricks(canvas.width);
-        scores = [0];
-        lives = [maxLives];
+        paddles.push(createPaddle(canvas.width / 2 + (canvas.width / 2 - paddleWidth) / 2, canvas.height - 30));
+        balls.push(createBall(canvas.width * 3 / 4, canvas.height - 45));
+        bricks.push(createBricks(canvas.width / 2));
+        scores.push(0);
+        lives.push(maxLives);
+        running = true;
+        requestAnimationFrame(draw);
       }
     
       // Start render loop for BOTH players
