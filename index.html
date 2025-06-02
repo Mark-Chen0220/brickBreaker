@@ -444,8 +444,6 @@
       ctx.font = '20px Arial';
       ctx.fillText("Press F5 to restart", canvas.width/2, canvas.height/2 + 160);
       ctx.textAlign = 'left';
-
-      db.ref(`rooms/${pin}`).remove(); // Remove the game room in Firebase
     }
 
     // --- Online Section (unchanged, for brevity) ---
