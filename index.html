@@ -299,19 +299,19 @@
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     
       // --- Drawing Section (shared for all modes) ---
-      if (mode === 'single' || mode === 'local-collab' || mode === 'online-collab') {
+      if(mode === 'single' || mode === 'local-collab' || mode === 'online-collab') {
         drawBricks(bricks);
-        paddles.forEach((p, i) => drawPaddle(p, i === 0 ? '#09f' : '#0f9'));
-        balls.forEach(b => drawBall(b, '#fff'));
+        for(let i=0; i<paddles.length; i++) drawPaddle(paddles[i], i===0?'#09f':'#0f9');
+        for(let i=0; i<balls.length; i++) drawBall(balls[i], '#fff');
         ctx.font = '18px Arial';
         ctx.fillStyle = '#fff';
         ctx.fillText('Score: ' + scores[0], 20, 30);
-        ctx.fillText('Lives: ' + lives[0], canvas.width - 100, 30);
-      } else if (mode === 'local-comp' || mode === 'online-comp') {
-        // Player 1's field (left)
+        ctx.fillText('Lives: ' + lives[0], canvas.width-100, 30);
+      } else if(mode === 'local-comp' || mode === 'online-comp') {
+        // Draw Player 1's field (left)
         ctx.save();
         ctx.beginPath();
-        ctx.rect(0, 0, canvas.width / 2, canvas.height);
+        ctx.rect(0, 0, canvas.width/2, canvas.height);
         ctx.clip();
         drawBricks(bricks[0], 0, 0);
         drawPaddle(paddles[0], '#09f', 0, 0);
@@ -320,25 +320,25 @@
         ctx.fillStyle = '#09f';
         ctx.fillText('P1 Score: ' + scores[0] + '  Lives: ' + lives[0], 20, 30);
         ctx.restore();
-    
-        // Player 2's field (right)
+
+        // Draw Player 2's field (right)
         ctx.save();
         ctx.beginPath();
-        ctx.rect(canvas.width / 2, 0, canvas.width / 2, canvas.height);
+        ctx.rect(canvas.width/2, 0, canvas.width/2, canvas.height);
         ctx.clip();
-        drawBricks(bricks[1], canvas.width / 2, 0);
-        drawPaddle(paddles[1], '#0f9', canvas.width / 2, 0);
-        drawBall(balls[1], '#fff', canvas.width / 2, 0);
+        drawBricks(bricks[1], canvas.width/2, 0);
+        drawPaddle(paddles[1], '#0f9', canvas.width/2, 0);
+        drawBall(balls[1], '#fff', canvas.width/2, 0);
         ctx.font = '16px Arial';
         ctx.fillStyle = '#0f9';
-        ctx.fillText('P2 Score: ' + scores[1] + '  Lives: ' + lives[1], canvas.width / 2 + 20, 30);
+        ctx.fillText('P2 Score: ' + scores[1] + '  Lives: ' + lives[1], canvas.width/2 + 20, 30);
         ctx.restore();
-    
-        // Dividing line
+
+        // Draw dividing line
         ctx.strokeStyle = "#fff";
         ctx.beginPath();
-        ctx.moveTo(canvas.width / 2, 0);
-        ctx.lineTo(canvas.width / 2, canvas.height);
+        ctx.moveTo(canvas.width/2, 0);
+        ctx.lineTo(canvas.width/2, canvas.height);
         ctx.stroke();
       }
     
