@@ -495,14 +495,26 @@
         }
       };
     
-      const snapshot = await db.ref(`rooms/${pin}/offer`).get();
-      if (!snapshot.exists()) {
+      // Retry logic: wait up to ~10 seconds for host to write offer
+      let offerData = null;
+      let attempts = 0;
+      while (attempts < 10) {
+        const snapshot = await db.ref(`rooms/${pin}/offer`).get();
+        if (snapshot.exists()) {
+          offerData = JSON.parse(snapshot.val());
+          break;
+        }
+        document.getElementById('joinStatus').textContent = `Waiting for host... (${attempts + 1})`;
+        await new Promise(res => setTimeout(res, 1000));
+        attempts++;
+      }
+    
+      if (!offerData) {
         document.getElementById('joinStatus').textContent = "Host not found or not ready.";
         return;
       }
     
-      const offer = JSON.parse(snapshot.val());
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(offerData));
       const answer = await peerConnection.createAnswer();
       await peerConnection.setLocalDescription(answer);
       await db.ref(`rooms/${pin}/answer`).set(JSON.stringify(answer));
