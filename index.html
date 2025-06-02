@@ -219,11 +219,23 @@
     
       // Only joiner needs to send key events
       if (!isHost && mode.startsWith('online')) {
-        document.addEventListener('keydown', e => {
-          if (dataChannel?.readyState === "open") {
-            dataChannel.send(JSON.stringify({ type: "keydown", key: e.key }));
+        dataChannel.onmessage = function(event) {
+          const msg = JSON.parse(event.data);
+          if (msg.type === "state") {
+            // Update local state with received state
+            const s = msg.state;
+            paddles = s.paddles;
+            balls = s.balls;
+            bricks = s.bricks;
+            scores = s.scores;
+            lives = s.lives;
+            running = s.running;
+            winner = s.winner;
+            // Optionally, call draw() to render immediately
+          } else if (msg.type === "keydown") {
+            // Only relevant if you want host to see joiner's key events
           }
-        });
+        };
       }
     }
 
@@ -286,7 +298,7 @@
     function draw() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      if(mode === 'single' || mode === 'local-collab') {
+      if(mode === 'single' || mode === 'local-collab' || mode === 'online-collab') {
         drawBricks(bricks);
         for(let i=0; i<paddles.length; i++) drawPaddle(paddles[i], i===0?'#09f':'#0f9');
         for(let i=0; i<balls.length; i++) drawBall(balls[i], '#fff');
@@ -294,7 +306,7 @@
         ctx.fillStyle = '#fff';
         ctx.fillText('Score: ' + scores[0], 20, 30);
         ctx.fillText('Lives: ' + lives[0], canvas.width-100, 30);
-      } else if(mode === 'local-comp') {
+      } else if(mode === 'local-comp' || mode === 'online-comp') {
         // Draw Player 1's field (left)
         ctx.save();
         ctx.beginPath();
@@ -336,7 +348,7 @@
           if(keys['arrowright']) paddles[0].x += paddleSpeed;
           paddles[0].x = Math.max(0, Math.min(canvas.width-paddleWidth, paddles[0].x));
         }
-        else if(mode === 'local-collab') {
+        else if(mode === 'local-collab' || mode === 'online-collab') {
           if(keys['arrowleft']) paddles[0].x -= paddleSpeed;
           if(keys['arrowright']) paddles[0].x += paddleSpeed;
           paddles[0].x = Math.max(0, Math.min(canvas.width-paddleWidth, paddles[0].x));
@@ -344,7 +356,7 @@
           if(keys['d']) paddles[1].x += paddleSpeed;
           paddles[1].x = Math.max(0, Math.min(canvas.width-paddleWidth, paddles[1].x));
         }
-        else if(mode === 'local-comp') {
+        else if(mode === 'local-comp' || mode === 'online-comp') {
           // Player 1 (left)
           if(keys['arrowleft']) paddles[0].x -= paddleSpeed;
           if(keys['arrowright']) paddles[0].x += paddleSpeed;
@@ -356,7 +368,7 @@
         }
 
         // Ball Movement and Collisions
-        if(mode === 'single' || mode === 'local-collab') {
+        if(mode === 'single' || mode === 'local-collab' || mode === 'online-collab') {
           let ball = balls[0];
           ball.x += ball.dx;
           ball.y += ball.dy;
@@ -398,7 +410,7 @@
             return;
           }
         }
-        else if(mode === 'local-comp') {
+        else if(mode === 'local-comp' || mode === 'online-comp') {
           for(let p=0; p<2; p++) {
             // Offset everything for player 2
             let offsetX = (p === 1) ? canvas.width/2 : 0;
@@ -452,12 +464,30 @@
           }
         }
       }
-      if(running) requestAnimationFrame(draw);
+      if(running){
+        requestAnimationFrame(draw);
+        if (mode.startsWith('online') && isHost && dataChannel?.readyState === "open") {
+          const state = {
+            paddles: paddles.map(p => ({ x: p.x, y: p.y })),
+            balls: balls.map(b => ({ x: b.x, y: b.y })),
+            bricks: mode.includes('comp')
+              ? [bricks[0].map(b => b.status), bricks[1].map(b => b.status)]
+              : bricks.map(b => b.status),
+            scores,
+            lives,
+            running,
+            winner
+          };
+          dataChannel.send(JSON.stringify({ type: "state", state }));
+        }
+      }
     }
 
     function showGameOver() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
+      if (mode.startsWith('online') && isHost) {
+        dataChannel.send(JSON.stringify({ type: "gameover", winner }));
+      }
       let imgToShow = null;
       if (winImage.complete && winner && winner.toLowerCase().includes("win")) {
         imgToShow = winImage;
@@ -636,11 +666,43 @@
         if (isHost && data.type === "joiner_connected") {
           document.getElementById('hostStatus').textContent = "Joiner connected!";
           document.getElementById('modeSelectContainer').style.display = 'block';
-        } else if (!isHost && data.type === "set_mode") {
+        } 
+        else if (!isHost && data.type === "set_mode") {
           mode = data.mode;
-          startOnlineGame(); // Start as joiner
-        } else if (data.type === "keydown") {
+          startOnlineGame();
+        } 
+        else if (data.type === "keydown") {
           keys[data.key.toLowerCase()] = true;
+        }
+        else if (data.type === "keyup") {
+          keys[data.key.toLowerCase()] = false;
+        }
+        else if (data.type === "keyevent") {
+          keys[data.prefix + data.key] = data.state; 
+        }
+        else if (data.type === "state") {
+          if (!isHost) {
+            const s = data.state;
+            // Reconstruct state
+            paddles = s.paddles;
+            balls = s.balls;
+            scores = s.scores;
+            lives = s.lives;
+            running = s.running;
+            winner = s.winner;
+            
+            // Reconstruct bricks
+            if (mode.includes('comp')) {
+              bricks[0] = s.bricks[0].map((status, i) => ({ ...bricks[0][i], status }));
+              bricks[1] = s.bricks[1].map((status, i) => ({ ...bricks[1][i], status }));
+            } else {
+              bricks = s.bricks.map((status, i) => ({ ...bricks[i], status }));
+            }
+          }
+        }
+        else if (data.type === "gameover") {
+          winner = data.winner;
+          showGameOver();
         }
       };
     }
@@ -693,6 +755,40 @@
           dataChannel.send(JSON.stringify({ type: "keydown", key: e.key }));
         }
       });
+
+      // Initialize state for joiner
+      if (!isHost) {
+        paddles = [
+          createPaddle(canvas.width/2, canvas.height-30),
+          createPaddle(canvas.width/2, 30)
+        ];
+        balls = [createBall(canvas.width/2, canvas.height/2)];
+        bricks = createBricks(canvas.width);
+        scores = [0];
+        lives = [maxLives];
+      }
+    
+      // Start render loop for BOTH players
+      requestAnimationFrame(draw);
+    
+      // Key handling
+      const sendKeyEvent = (e, type) => {
+        if (dataChannel?.readyState === "open") {
+          const prefix = mode.includes('comp') 
+            ? (localPlayerNum === 0 ? 'p1_' : 'p2_') 
+            : '';
+            
+          dataChannel.send(JSON.stringify({ 
+            type: "keyevent", 
+            key: e.key,
+            prefix,
+            state: type === 'keydown'
+          }));
+        }
+      };
+    
+      document.addEventListener('keydown', e => sendKeyEvent(e, 'keydown'));
+      document.addEventListener('keyup', e => sendKeyEvent(e, 'keyup'));
     }
 
     function selectOnlineMode(selectedMode) {
