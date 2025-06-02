@@ -180,42 +180,42 @@
         running = true;
         requestAnimationFrame(draw);
       }
-      else if (mode === 'online-collab') {
-        if (isHost) {
-          paddles = [
-            createPaddle((canvas.width - paddleWidth) / 2 + paddleWidth, canvas.height - 30),  // Host
-            createPaddle((canvas.width - paddleWidth) / 2 - paddleWidth, canvas.height - 30)   // Joiner
-          ];
-          balls = [createBall(canvas.width / 2, canvas.height / 2)];
-          bricks = createBricks(canvas.width);
-          scores = [0];
-          lives = [maxLives];
-          running = true;
-          requestAnimationFrame(draw);
-        }
-        // Joiner waits for game state from host
-      }
-      else if (mode === 'online-comp') {
-        if (isHost) {
-          paddles = [
-            createPaddle((canvas.width / 2 - paddleWidth) / 2, canvas.height - 30),             // Host
-            createPaddle(canvas.width / 2 + (canvas.width / 2 - paddleWidth) / 2, canvas.height - 30) // Joiner
-          ];
-          balls = [
-            createBall(canvas.width / 4, canvas.height - 45),
-            createBall(canvas.width * 3 / 4, canvas.height - 45)
-          ];
-          bricks = [
-            createBricks(canvas.width / 2),
-            createBricks(canvas.width / 2)
-          ];
-          scores = [0, 0];
-          lives = [maxLives, maxLives];
-          running = true;
-          requestAnimationFrame(draw);
-        }
-        // Joiner waits for game state from host
-      }
+      // else if (mode === 'online-collab') {
+      //   if (isHost) {
+      //     paddles = [
+      //       createPaddle((canvas.width - paddleWidth) / 2 + paddleWidth, canvas.height - 30),  // Host
+      //       createPaddle((canvas.width - paddleWidth) / 2 - paddleWidth, canvas.height - 30)   // Joiner
+      //     ];
+      //     balls = [createBall(canvas.width / 2, canvas.height / 2)];
+      //     bricks = createBricks(canvas.width);
+      //     scores = [0];
+      //     lives = [maxLives];
+      //     running = true;
+      //     requestAnimationFrame(draw);
+      //   }
+      //   // Joiner waits for game state from host
+      // }
+      // else if (mode === 'online-comp') {
+      //   if (isHost) {
+      //     paddles = [
+      //       createPaddle((canvas.width / 2 - paddleWidth) / 2, canvas.height - 30),             // Host
+      //       createPaddle(canvas.width / 2 + (canvas.width / 2 - paddleWidth) / 2, canvas.height - 30) // Joiner
+      //     ];
+      //     balls = [
+      //       createBall(canvas.width / 4, canvas.height - 45),
+      //       createBall(canvas.width * 3 / 4, canvas.height - 45)
+      //     ];
+      //     bricks = [
+      //       createBricks(canvas.width / 2),
+      //       createBricks(canvas.width / 2)
+      //     ];
+      //     scores = [0, 0];
+      //     lives = [maxLives, maxLives];
+      //     running = true;
+      //     requestAnimationFrame(draw);
+      //   }
+      //   // Joiner waits for game state from host
+      // }
     
       // Only joiner needs to send key events
       if (!isHost && mode.startsWith('online')) {
