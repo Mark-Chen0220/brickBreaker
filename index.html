@@ -709,8 +709,9 @@
 
     
     function startOnlineGame() {
-      if ((isHost && !mode) || (!isHost && typeof mode === 'undefined')) {
-        showErrorState("Game mode not initialized");
+      if (isHost && !mode) {
+        // Host needs to choose mode first
+        document.getElementById('modeSelectContainer').style.display = 'block';
         return;
       }
     
