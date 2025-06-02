@@ -297,20 +297,21 @@
     // --- Main Game Loop ---
     function draw() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      if(mode === 'single' || mode === 'local-collab' || mode === 'online-collab') {
+    
+      // --- Drawing Section (shared for all modes) ---
+      if (mode === 'single' || mode === 'local-collab' || mode === 'online-collab') {
         drawBricks(bricks);
-        for(let i=0; i<paddles.length; i++) drawPaddle(paddles[i], i===0?'#09f':'#0f9');
-        for(let i=0; i<balls.length; i++) drawBall(balls[i], '#fff');
+        paddles.forEach((p, i) => drawPaddle(p, i === 0 ? '#09f' : '#0f9'));
+        balls.forEach(b => drawBall(b, '#fff'));
         ctx.font = '18px Arial';
         ctx.fillStyle = '#fff';
         ctx.fillText('Score: ' + scores[0], 20, 30);
-        ctx.fillText('Lives: ' + lives[0], canvas.width-100, 30);
-      } else if(mode === 'local-comp' || mode === 'online-comp') {
-        // Draw Player 1's field (left)
+        ctx.fillText('Lives: ' + lives[0], canvas.width - 100, 30);
+      } else if (mode === 'local-comp' || mode === 'online-comp') {
+        // Player 1's field (left)
         ctx.save();
         ctx.beginPath();
-        ctx.rect(0, 0, canvas.width/2, canvas.height);
+        ctx.rect(0, 0, canvas.width / 2, canvas.height);
         ctx.clip();
         drawBricks(bricks[0], 0, 0);
         drawPaddle(paddles[0], '#09f', 0, 0);
@@ -319,152 +320,39 @@
         ctx.fillStyle = '#09f';
         ctx.fillText('P1 Score: ' + scores[0] + '  Lives: ' + lives[0], 20, 30);
         ctx.restore();
-
-        // Draw Player 2's field (right)
+    
+        // Player 2's field (right)
         ctx.save();
         ctx.beginPath();
-        ctx.rect(canvas.width/2, 0, canvas.width/2, canvas.height);
+        ctx.rect(canvas.width / 2, 0, canvas.width / 2, canvas.height);
         ctx.clip();
-        drawBricks(bricks[1], canvas.width/2, 0);
-        drawPaddle(paddles[1], '#0f9', canvas.width/2, 0);
-        drawBall(balls[1], '#fff', canvas.width/2, 0);
+        drawBricks(bricks[1], canvas.width / 2, 0);
+        drawPaddle(paddles[1], '#0f9', canvas.width / 2, 0);
+        drawBall(balls[1], '#fff', canvas.width / 2, 0);
         ctx.font = '16px Arial';
         ctx.fillStyle = '#0f9';
-        ctx.fillText('P2 Score: ' + scores[1] + '  Lives: ' + lives[1], canvas.width/2 + 20, 30);
+        ctx.fillText('P2 Score: ' + scores[1] + '  Lives: ' + lives[1], canvas.width / 2 + 20, 30);
         ctx.restore();
-
-        // Draw dividing line
+    
+        // Dividing line
         ctx.strokeStyle = "#fff";
         ctx.beginPath();
-        ctx.moveTo(canvas.width/2, 0);
-        ctx.lineTo(canvas.width/2, canvas.height);
+        ctx.moveTo(canvas.width / 2, 0);
+        ctx.lineTo(canvas.width / 2, canvas.height);
         ctx.stroke();
       }
-
-      // --- Game Logic ---
-      if(running) {
-        if(mode === 'single') {
-          if(keys['arrowleft']) paddles[0].x -= paddleSpeed;
-          if(keys['arrowright']) paddles[0].x += paddleSpeed;
-          paddles[0].x = Math.max(0, Math.min(canvas.width-paddleWidth, paddles[0].x));
-        }
-        else if(mode === 'local-collab' || mode === 'online-collab') {
-          if(keys['arrowleft']) paddles[0].x -= paddleSpeed;
-          if(keys['arrowright']) paddles[0].x += paddleSpeed;
-          paddles[0].x = Math.max(0, Math.min(canvas.width-paddleWidth, paddles[0].x));
-          if(keys['a']) paddles[1].x -= paddleSpeed;
-          if(keys['d']) paddles[1].x += paddleSpeed;
-          paddles[1].x = Math.max(0, Math.min(canvas.width-paddleWidth, paddles[1].x));
-        }
-        else if(mode === 'local-comp' || mode === 'online-comp') {
-          // Player 1 (left)
-          if(keys['arrowleft']) paddles[0].x -= paddleSpeed;
-          if(keys['arrowright']) paddles[0].x += paddleSpeed;
-          paddles[0].x = Math.max(0, Math.min(canvas.width/2-paddleWidth, paddles[0].x));
-          // Player 2 (right)
-          if(keys['a']) paddles[1].x -= paddleSpeed;
-          if(keys['d']) paddles[1].x += paddleSpeed;
-          paddles[1].x = Math.max(0, Math.min(canvas.width/2-paddleWidth, paddles[1].x));
-        }
-
-        // Ball Movement and Collisions
-        if(mode === 'single' || mode === 'local-collab' || mode === 'online-collab') {
-          let ball = balls[0];
-          ball.x += ball.dx;
-          ball.y += ball.dy;
-          if(ball.x + ball.radius > canvas.width || ball.x - ball.radius < 0) ball.dx *= -1;
-          if(ball.y - ball.radius < 0) ball.dy *= -1;
-          if(ball.y + ball.radius > canvas.height) {
-            lives[0]--;
-            if(lives[0] <= 0) { 
-                running = false; 
-                winner = 'You Lose!'; 
-                setTimeout(showGameOver, 500); 
-                soundLose.play();
-                return; 
-            }
-            ball.x = canvas.width/2; 
-            ball.y = canvas.height-45; 
-            ball.dx = 2; 
-            ball.dy = -2;
-          }
-          for(let i=0; i<paddles.length; i++) {
-            if(collisionBallPaddle(ball, paddles[i])) {
-              ball.dy *= -1;
-              soundPaddle.play();
-            }
-          }
-          for(let i=0; i<bricks.length; i++) {
-            if(collisionBallBrick(ball, bricks[i])) {
-              ball.dy *= -1;
-              bricks[i].status = 0;
-              scores[0] += 10;
-              soundBrick.play();
-            }
-          }
-          if(bricks.every(brick => !brick.status)) {
-            running = false; 
-            winner = "You Win!"; 
-            setTimeout(showGameOver, 500); 
-            soundWin.play();
-            return;
-          }
-        }
-        else if(mode === 'local-comp' || mode === 'online-comp') {
-          for(let p=0; p<2; p++) {
-            // Offset everything for player 2
-            let offsetX = (p === 1) ? canvas.width/2 : 0;
-            let areaWidth = canvas.width/2;
-            let ball = balls[p];
-            ball.x += ball.dx;
-            ball.y += ball.dy;
-            // Wall collisions (left/right walls of each half)
-            if(ball.x + ball.radius > areaWidth) ball.dx *= -1;
-            if(ball.x - ball.radius < 0) ball.dx *= -1;
-            // Top/bottom walls
-            if(ball.y - ball.radius < 0) ball.dy *= -1;
-            if(ball.y + ball.radius > canvas.height) {
-              lives[p]--;
-              if(lives[p] <= 0) {
-                running = false;
-                if (lives[0] > lives[1]) winner = "Player 1 Wins!";
-                else if (lives[1] > lives[0]) winner = "Player 2 Wins!";
-                else winner = "Draw!";
-                setTimeout(showGameOver, 500);
-                return;
-              }
-              ball.x = areaWidth/2;
-              ball.y = canvas.height-45;
-              ball.dx = 2 * (Math.random() > 0.5 ? 1 : -1);
-              ball.dy = -2;
-            }
-            // Paddle collision
-            let paddle = paddles[p];
-            if(collisionBallPaddle(ball, paddle)) {
-              ball.dy *= -1;
-              soundPaddle.play();
-            }
-            // Brick collisions
-            for(let i=0; i<bricks[p].length; i++) {
-              if(collisionBallBrick(ball, bricks[p][i])) {
-                ball.dy *= -1;
-                bricks[p][i].status = 0;
-                scores[p] += 10;
-                soundBrick.play();
-              }
-            }
-            // Win condition for each player
-            if(bricks[p].every(brick => !brick.status)) {
-              running = false;
-              winner = (p===0) ? "Player 1 Wins!" : "Player 2 Wins!";
-              soundWin.play();
-              setTimeout(showGameOver, 500);
-              return;
-            }
-          }
+    
+      // --- Game Logic Section ---
+      if (running) {
+        if (mode === 'single' || mode === 'local-collab' || mode === 'local-comp') {
+          runLocalGameLogic();
+        } else if (mode.startsWith('online')) {
+          runOnlineGameLogic();
         }
       }
-      if(running){
+    
+      // --- Animation Loop and Online Sync ---
+      if (running) {
         requestAnimationFrame(draw);
         if (mode.startsWith('online') && isHost && dataChannel?.readyState === "open") {
           const state = {
@@ -479,6 +367,154 @@
             winner
           };
           dataChannel.send(JSON.stringify({ type: "state", state }));
+        }
+      }
+    }
+    
+    // --- Local Game Logic ---
+    function runLocalGameLogic() {
+      if (mode === 'single') {
+        // Paddle movement
+        if (keys['arrowleft']) paddles[0].x -= paddleSpeed;
+        if (keys['arrowright']) paddles[0].x += paddleSpeed;
+        paddles[0].x = Math.max(0, Math.min(canvas.width - paddleWidth, paddles[0].x));
+        // Ball movement, collision, etc...
+        runBallAndCollisionLogicSingle();
+      } else if (mode === 'local-collab') {
+        // Both paddles
+        if (keys['arrowleft']) paddles[0].x -= paddleSpeed;
+        if (keys['arrowright']) paddles[0].x += paddleSpeed;
+        paddles[0].x = Math.max(0, Math.min(canvas.width - paddleWidth, paddles[0].x));
+        if (keys['a']) paddles[1].x -= paddleSpeed;
+        if (keys['d']) paddles[1].x += paddleSpeed;
+        paddles[1].x = Math.max(0, Math.min(canvas.width - paddleWidth, paddles[1].x));
+        runBallAndCollisionLogicSingle();
+      } else if (mode === 'local-comp') {
+        // Both paddles
+        if (keys['arrowleft']) paddles[0].x -= paddleSpeed;
+        if (keys['arrowright']) paddles[0].x += paddleSpeed;
+        paddles[0].x = Math.max(0, Math.min(canvas.width - paddleWidth, paddles[0].x));
+        if (keys['a']) paddles[1].x -= paddleSpeed;
+        if (keys['d']) paddles[1].x += paddleSpeed;
+        paddles[1].x = Math.max(0, Math.min(canvas.width - paddleWidth, paddles[1].x));
+        runBallAndCollisionLogicComp();
+      }
+    }
+    
+    // --- Online Game Logic (host only) ---
+    function runOnlineGameLogic() {
+      if (!isHost) return; // Only host runs game logic
+    
+      if (mode === 'online-collab') {
+        // Paddle movement (host: arrow keys, peer: WASD)
+        if (keys['arrowleft']) paddles[0].x -= paddleSpeed;
+        if (keys['arrowright']) paddles[0].x += paddleSpeed;
+        paddles[0].x = Math.max(0, Math.min(canvas.width - paddleWidth, paddles[0].x));
+        if (keys['a']) paddles[1].x -= paddleSpeed;
+        if (keys['d']) paddles[1].x += paddleSpeed;
+        paddles[1].x = Math.max(0, Math.min(canvas.width - paddleWidth, paddles[1].x));
+        runBallAndCollisionLogicSingle();
+      } else if (mode === 'online-comp') {
+        // Paddle movement (host: arrow keys, peer: WASD)
+        if (keys['arrowleft']) paddles[0].x -= paddleSpeed;
+        if (keys['arrowright']) paddles[0].x += paddleSpeed;
+        paddles[0].x = Math.max(0, Math.min(canvas.width - paddleWidth, paddles[0].x));
+        if (keys['a']) paddles[1].x -= paddleSpeed;
+        if (keys['d']) paddles[1].x += paddleSpeed;
+        paddles[1].x = Math.max(0, Math.min(canvas.width - paddleWidth, paddles[1].x));
+        runBallAndCollisionLogicComp();
+      }
+    }
+    
+    // --- Ball and Collision Logic for Single/Collab ---
+    function runBallAndCollisionLogicSingle() {
+      let ball = balls[0];
+      ball.x += ball.dx;
+      ball.y += ball.dy;
+      if (ball.x + ball.radius > canvas.width || ball.x - ball.radius < 0) ball.dx *= -1;
+      if (ball.y - ball.radius < 0) ball.dy *= -1;
+      if (ball.y + ball.radius > canvas.height) {
+        lives[0]--;
+        if (lives[0] <= 0) {
+          running = false;
+          winner = 'You Lose!';
+          setTimeout(showGameOver, 500);
+          soundLose.play();
+          return;
+        }
+        ball.x = canvas.width / 2;
+        ball.y = canvas.height - 45;
+        ball.dx = 2;
+        ball.dy = -2;
+      }
+      for (let i = 0; i < paddles.length; i++) {
+        if (collisionBallPaddle(ball, paddles[i])) {
+          ball.dy *= -1;
+          soundPaddle.play();
+        }
+      }
+      for (let i = 0; i < bricks.length; i++) {
+        if (collisionBallBrick(ball, bricks[i])) {
+          ball.dy *= -1;
+          bricks[i].status = 0;
+          scores[0] += 10;
+          soundBrick.play();
+        }
+      }
+      if (bricks.every(brick => !brick.status)) {
+        running = false;
+        winner = "You Win!";
+        setTimeout(showGameOver, 500);
+        soundWin.play();
+        return;
+      }
+    }
+    
+    // --- Ball and Collision Logic for Comp modes ---
+    function runBallAndCollisionLogicComp() {
+      for (let p = 0; p < 2; p++) {
+        let offsetX = (p === 1) ? canvas.width / 2 : 0;
+        let areaWidth = canvas.width / 2;
+        let ball = balls[p];
+        ball.x += ball.dx;
+        ball.y += ball.dy;
+        if (ball.x + ball.radius > areaWidth) ball.dx *= -1;
+        if (ball.x - ball.radius < 0) ball.dx *= -1;
+        if (ball.y - ball.radius < 0) ball.dy *= -1;
+        if (ball.y + ball.radius > canvas.height) {
+          lives[p]--;
+          if (lives[p] <= 0) {
+            running = false;
+            if (lives[0] > lives[1]) winner = "Player 1 Wins!";
+            else if (lives[1] > lives[0]) winner = "Player 2 Wins!";
+            else winner = "Draw!";
+            setTimeout(showGameOver, 500);
+            return;
+          }
+          ball.x = areaWidth / 2;
+          ball.y = canvas.height - 45;
+          ball.dx = 2 * (Math.random() > 0.5 ? 1 : -1);
+          ball.dy = -2;
+        }
+        let paddle = paddles[p];
+        if (collisionBallPaddle(ball, paddle)) {
+          ball.dy *= -1;
+          soundPaddle.play();
+        }
+        for (let i = 0; i < bricks[p].length; i++) {
+          if (collisionBallBrick(ball, bricks[p][i])) {
+            ball.dy *= -1;
+            bricks[p][i].status = 0;
+            scores[p] += 10;
+            soundBrick.play();
+          }
+        }
+        if (bricks[p].every(brick => !brick.status)) {
+          running = false;
+          winner = (p === 0) ? "Player 1 Wins!" : "Player 2 Wins!";
+          soundWin.play();
+          setTimeout(showGameOver, 500);
+          return;
         }
       }
     }
