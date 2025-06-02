@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Brick Breaker - Split Screen Competitive</title>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDyufVXuOR05-2vNwymgMp-wgwLjf_M1sw",
+      authDomain: "brick-breaker-online.firebaseapp.com",
+      projectId: "brick-breaker-online",
+      storageBucket: "brick-breaker-online.appspot.com",
+      messagingSenderId: "546902161970",
+      appId: "1:546902161970:web:c11c6d7aeba572921d9a2b",
+      databaseURL: "https://brick-breaker-online-default-rtdb.asia-southeast1.firebasedatabase.app/"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+  </script>
+  <style>
+    body { background: #161b22; color: #fff; font-family: 'Segoe UI', Arial, sans-serif; margin: 0; }
+    #container { background: #22272e; border-radius: 24px; box-shadow: 0 8px 32px rgba(0,0,0,0.25); padding: 40px 32px 32px 32px; display: flex; flex-direction: column; align-items: center; max-width: 600px; width: 100%; margin: 40px auto 0 auto;}
+    .title { font-size: 2.4rem; font-weight: bold; margin-bottom: 24px; }
+    .menu-btn { width: 320px; padding: 16px 0; margin: 0 auto 16px auto; font-size: 1.15rem; font-weight: 600; border: none; border-radius: 12px; background: #379afc; color: #fff; transition: background 0.18s, transform 0.12s; cursor: pointer; box-shadow: 0 2px 8px rgba(55,154,252,0.09);}
+    .menu-btn:hover { background: #2563eb; transform: translateY(-2px) scale(1.03); color: #fff; }
+    #controls { margin: 10px auto 0 auto; width: 600px; text-align: left; font-size: 1rem; color: #b1b7c4; display: none;}
+    #gameCanvas { background: #111; display: none; margin: 20px auto; border: 2px solid #fff; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.18);}
+    #online-section { display: none; margin: 24px 0 0 0; background: #23272f; border-radius: 12px; padding: 16px; width: 100%; max-width: 500px; color: #b1b7c4; font-size: 1rem; }
+    #online-section input { width: 100px; font-size: 1.2rem; margin: 0 8px 0 0; padding: 6px; border-radius: 6px; border: none; background: #181c23; color: #fff; text-align: center;}
+    #online-section button { margin: 8px 0 0 0; background: #379afc; color: #fff; border: none; border-radius: 8px; padding: 8px 18px; font-size: 1rem; cursor: pointer; transition: background 0.15s;}
+    #online-section button:hover { background: #2563eb;}
+    #pinDisplay { font-size: 2rem; letter-spacing: 0.2em; margin: 12px 0 0 0; color: #fff;}
+    #info { margin-top: 8px; color: #e2e2e2;}
+    #cover-image { width:80%; max-width:400px; margin:24px auto 16px auto; display:block; border-radius:16px;}
+    @media (max-width: 700px) { #container { padding: 24px 4vw; } .menu-btn { width: 90vw; min-width: 0; } #controls { width: 90vw; } }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <img src="img/cover.png" alt="Game Cover" id="cover-image" style="width:80%;max-width:400px;margin:24px auto 16px auto;display:block;border-radius:16px;">
+    <button class="menu-btn" onclick="startGame('single')">Singleplayer</button>
+    <button class="menu-btn" onclick="startGame('local-collab')">Local 2P Collaborative</button>
+    <button class="menu-btn" onclick="startGame('local-comp')">Local 2P Competitive</button>
+    <button class="menu-btn" onclick="showOnlineSection('host')">Host Online Game</button>
+    <button class="menu-btn" onclick="showOnlineSection('join')">Join Online Game</button>
+  </div>
+  <div id="online-section">
+    <div id="online-host" style="display:none;">
+      <div id="info">Share this PIN with your friend:</div>
+      <div id="pinDisplay"></div>
+      <button onclick="copyPin()">Copy PIN</button>
+      <div style="margin-top:12px;">When your friend joins, the game will start.</div>
+    </div>
+    <div id="online-join" style="display:none;">
+      <div>Enter PIN from your friend:</div>
+      <input id="pinInput" maxlength="4" placeholder="1234">
+      <button onclick="joinOnline()">Join</button>
+      <div id="joinStatus"></div>
+    </div>
+  </div>
+  <div id="controls">
+    <b>Controls:</b><br>
+    Player 1: <b>Left/Right Arrows</b> &nbsp; | &nbsp; Player 2: <b>A/D</b>
+  </div>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  <script>
+    // --- Game Constants ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    let mode = null; // 'single', 'local-collab', 'local-comp', 'online'
+    let running = false;
+    let isHost = false;
+    let pin = '';
+    let peerConnection = null;
+    let dataChannel = null;
+    let remoteReady = false;
+    let localPlayerNum = 0; // 0 = host, 1 = joiner
+
+    // Paddle, Ball, Bricks, etc.
+    const paddleWidth = 100, paddleHeight = 15, paddleSpeed = 7;
+    const ballRadius = 8;
+    const brickRowCount = 5, brickColumnCount = 10, brickPadding = 10, brickHeight = 24;
+    const maxLives = 3;
+    let paddles, balls, bricks, scores, lives, keys, winner;
+
+    // --- Brick Creation with Colors and Split-Screen Support ---
+    function createBricks(areaWidth, offsetY=60) {
+      const colors = ['#f9a825', '#e53935', '#43a047', '#1e88e5', '#f9a825'];
+      const cols = brickColumnCount;
+      const rows = brickRowCount;
+      const totalBrickWidth = areaWidth - (brickPadding * (cols + 1));
+      const brickWidth = totalBrickWidth / cols;
+      let b = [];
+      for(let r=0; r<rows; r++) {
+        for(let c=0; c<cols; c++) {
+          b.push({
+            x: brickPadding + c * (brickWidth + brickPadding),
+            y: offsetY + r * (brickHeight + brickPadding),
+            width: brickWidth,
+            height: brickHeight,
+            status: 1,
+            color: colors[r % colors.length]
+          });
+        }
+      }
+      return b;
+    }
+    function drawBricks(bricksArr, offsetX=0, offsetY=0) {
+      for(let i=0; i<bricksArr.length; i++) {
+        const b = bricksArr[i];
+        if (b.status) {
+          ctx.fillStyle = b.color || '#f90';
+          ctx.fillRect(offsetX + b.x, offsetY + b.y, b.width, b.height);
+        }
+      }
+    }
+
+    // --- Paddle & Ball Creation ---
+    function createPaddle(x, y) { return {x, y, width: paddleWidth, height: paddleHeight, dx: 0}; }
+    function createBall(x, y, dx=2, dy=-2) { return {x, y, dx, dy, radius: ballRadius}; }
+
+    // --- Game State Reset ---
+    function resetGameVars() {
+      paddles = [];
+      balls = [];
+      bricks = [];
+      scores = [];
+      lives = [];
+      keys = {};
+      winner = null;
+    }
+
+    // --- Game Initialization ---
+    function startGame(selectedMode) {
+      mode = selectedMode;
+      document.getElementById('container').style.display = 'none';
+      document.getElementById('controls').style.display = 'block';
+      canvas.style.display = 'block';
+      document.getElementById('online-section').style.display = 'none';
+      resetGameVars();
+      if(mode === 'single') {
+        paddles.push(createPaddle((canvas.width-paddleWidth)/2, canvas.height-30));
+        balls.push(createBall(canvas.width/2, canvas.height-45));
+        bricks = createBricks(canvas.width);
+        scores.push(0);
+        lives.push(maxLives);
+        running = true;
+        requestAnimationFrame(draw);
+      }
+      else if(mode === 'local-collab') {
+        paddles.push(createPaddle((canvas.width-paddleWidth)/2+paddleWidth, canvas.height-30));
+        paddles.push(createPaddle((canvas.width-paddleWidth)/2-paddleWidth, canvas.height-30));
+        balls.push(createBall(canvas.width/2, canvas.height/2));
+        bricks = createBricks(canvas.width);
+        scores.push(0);
+        lives.push(maxLives);
+        running = true;
+        requestAnimationFrame(draw);
+      }
+      else if(mode === 'local-comp') {
+        // Player 1 (left)
+        paddles.push(createPaddle((canvas.width/2 - paddleWidth)/2, canvas.height-30));
+        balls.push(createBall(canvas.width/4, canvas.height-45));
+        bricks.push(createBricks(canvas.width/2));
+        scores.push(0);
+        lives.push(maxLives);
+        // Player 2 (right)
+        paddles.push(createPaddle(canvas.width/2 + (canvas.width/2 - paddleWidth)/2, canvas.height-30));
+        balls.push(createBall(canvas.width*3/4, canvas.height-45));
+        bricks.push(createBricks(canvas.width/2));
+        scores.push(0);
+        lives.push(maxLives);
+        running = true;
+        requestAnimationFrame(draw);
+      }
+    }
+
+    // --- Input Handling ---
+    document.addEventListener('keydown', function(e) { keys[e.key.toLowerCase()] = true; });
+    document.addEventListener('keyup', function(e) { keys[e.key.toLowerCase()] = false; });
+
+    // --- Drawing Functions ---
+    function drawPaddle(p, color='#09f', offsetX=0, offsetY=0) { ctx.fillStyle = color; ctx.fillRect(offsetX + p.x, offsetY + p.y, p.width, p.height); }
+    function drawBall(b, color='#fff', offsetX=0, offsetY=0) { ctx.beginPath(); ctx.arc(offsetX + b.x, offsetY + b.y, b.radius, 0, Math.PI*2); ctx.fillStyle = color; ctx.fill(); ctx.closePath(); }
+
+    // --- Collision Detection ---
+    function collisionBallPaddle(ball, paddle) {
+      return (
+        ball.x > paddle.x &&
+        ball.x < paddle.x + paddle.width &&
+        ball.y + ball.radius > paddle.y &&
+        ball.y - ball.radius < paddle.y + paddle.height
+      );
+    }
+    function collisionBallBrick(ball, brick) {
+      return (
+        brick.status &&
+        ball.x > brick.x &&
+        ball.x < brick.x + brick.width &&
+        ball.y > brick.y &&
+        ball.y < brick.y + brick.height
+      );
+    }
+    // --- Game Sound ---
+    function Sound(src) {
+      this.sound = document.createElement("audio");
+      this.sound.src = src;
+      this.sound.setAttribute("preload", "auto");
+      this.sound.setAttribute("controls", "none");
+      this.sound.style.display = "none";
+      document.body.appendChild(this.sound);
+      this.play = function(){
+          this.sound.currentTime = 0;
+          this.sound.play();
+      }
+      this.stop = function(){
+          this.sound.pause();
+      }
+    }
+    const soundPaddle = new Sound('snd/paddleHit.mp3');
+    soundPaddle.sound.volume = 0.9; // 90% volume
+    const soundBrick  = new Sound('snd/brickBreak.mp3');
+    soundBrick.sound.volume = 0.4; // 60% volume
+    const soundWin    = new Sound('snd/win.mp3');
+    const soundLose   = new Sound('snd/lose.mp3');
+
+    // --- Load Images ---
+    const winImage = new Image();
+    winImage.src = 'img/win.png';
+    const loseImage = new Image();
+    loseImage.src = 'img/lose.png';
+
+    // --- Main Game Loop ---
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if(mode === 'single' || mode === 'local-collab') {
+        drawBricks(bricks);
+        for(let i=0; i<paddles.length; i++) drawPaddle(paddles[i], i===0?'#09f':'#0f9');
+        for(let i=0; i<balls.length; i++) drawBall(balls[i], '#fff');
+        ctx.font = '18px Arial';
+        ctx.fillStyle = '#fff';
+        ctx.fillText('Score: ' + scores[0], 20, 30);
+        ctx.fillText('Lives: ' + lives[0], canvas.width-100, 30);
+      } else if(mode === 'local-comp') {
+        // Draw Player 1's field (left)
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, canvas.width/2, canvas.height);
+        ctx.clip();
+        drawBricks(bricks[0], 0, 0);
+        drawPaddle(paddles[0], '#09f', 0, 0);
+        drawBall(balls[0], '#fff', 0, 0);
+        ctx.font = '16px Arial';
+        ctx.fillStyle = '#09f';
+        ctx.fillText('P1 Score: ' + scores[0] + '  Lives: ' + lives[0], 20, 30);
+        ctx.restore();
+
+        // Draw Player 2's field (right)
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(canvas.width/2, 0, canvas.width/2, canvas.height);
+        ctx.clip();
+        drawBricks(bricks[1], canvas.width/2, 0);
+        drawPaddle(paddles[1], '#0f9', canvas.width/2, 0);
+        drawBall(balls[1], '#fff', canvas.width/2, 0);
+        ctx.font = '16px Arial';
+        ctx.fillStyle = '#0f9';
+        ctx.fillText('P2 Score: ' + scores[1] + '  Lives: ' + lives[1], canvas.width/2 + 20, 30);
+        ctx.restore();
+
+        // Draw dividing line
+        ctx.strokeStyle = "#fff";
+        ctx.beginPath();
+        ctx.moveTo(canvas.width/2, 0);
+        ctx.lineTo(canvas.width/2, canvas.height);
+        ctx.stroke();
+      }
+
+      // --- Game Logic ---
+      if(running) {
+        if(mode === 'single') {
+          if(keys['arrowleft']) paddles[0].x -= paddleSpeed;
+          if(keys['arrowright']) paddles[0].x += paddleSpeed;
+          paddles[0].x = Math.max(0, Math.min(canvas.width-paddleWidth, paddles[0].x));
+        }
+        else if(mode === 'local-collab') {
+          if(keys['arrowleft']) paddles[0].x -= paddleSpeed;
+          if(keys['arrowright']) paddles[0].x += paddleSpeed;
+          paddles[0].x = Math.max(0, Math.min(canvas.width-paddleWidth, paddles[0].x));
+          if(keys['a']) paddles[1].x -= paddleSpeed;
+          if(keys['d']) paddles[1].x += paddleSpeed;
+          paddles[1].x = Math.max(0, Math.min(canvas.width-paddleWidth, paddles[1].x));
+        }
+        else if(mode === 'local-comp') {
+          // Player 1 (left)
+          if(keys['arrowleft']) paddles[0].x -= paddleSpeed;
+          if(keys['arrowright']) paddles[0].x += paddleSpeed;
+          paddles[0].x = Math.max(0, Math.min(canvas.width/2-paddleWidth, paddles[0].x));
+          // Player 2 (right)
+          if(keys['a']) paddles[1].x -= paddleSpeed;
+          if(keys['d']) paddles[1].x += paddleSpeed;
+          paddles[1].x = Math.max(0, Math.min(canvas.width/2-paddleWidth, paddles[1].x));
+        }
+
+        // Ball Movement and Collisions
+        if(mode === 'single' || mode === 'local-collab') {
+          let ball = balls[0];
+          ball.x += ball.dx;
+          ball.y += ball.dy;
+          if(ball.x + ball.radius > canvas.width || ball.x - ball.radius < 0) ball.dx *= -1;
+          if(ball.y - ball.radius < 0) ball.dy *= -1;
+          if(ball.y + ball.radius > canvas.height) {
+            lives[0]--;
+            if(lives[0] <= 0) { 
+                running = false; 
+                winner = 'You Lose!'; 
+                setTimeout(showGameOver, 500); 
+                soundLose.play();
+                return; 
+            }
+            ball.x = canvas.width/2; 
+            ball.y = canvas.height-45; 
+            ball.dx = 2; 
+            ball.dy = -2;
+          }
+          for(let i=0; i<paddles.length; i++) {
+            if(collisionBallPaddle(ball, paddles[i])) {
+              ball.dy *= -1;
+              soundPaddle.play();
+            }
+          }
+          for(let i=0; i<bricks.length; i++) {
+            if(collisionBallBrick(ball, bricks[i])) {
+              ball.dy *= -1;
+              bricks[i].status = 0;
+              scores[0] += 10;
+              soundBrick.play();
+            }
+          }
+          if(bricks.every(brick => !brick.status)) {
+            running = false; 
+            winner = "You Win!"; 
+            setTimeout(showGameOver, 500); 
+            soundWin.play();
+            return;
+          }
+        }
+        else if(mode === 'local-comp') {
+          for(let p=0; p<2; p++) {
+            // Offset everything for player 2
+            let offsetX = (p === 1) ? canvas.width/2 : 0;
+            let areaWidth = canvas.width/2;
+            let ball = balls[p];
+            ball.x += ball.dx;
+            ball.y += ball.dy;
+            // Wall collisions (left/right walls of each half)
+            if(ball.x + ball.radius > areaWidth) ball.dx *= -1;
+            if(ball.x - ball.radius < 0) ball.dx *= -1;
+            // Top/bottom walls
+            if(ball.y - ball.radius < 0) ball.dy *= -1;
+            if(ball.y + ball.radius > canvas.height) {
+              lives[p]--;
+              if(lives[p] <= 0) {
+                running = false;
+                if (lives[0] > lives[1]) winner = "Player 1 Wins!";
+                else if (lives[1] > lives[0]) winner = "Player 2 Wins!";
+                else winner = "Draw!";
+                setTimeout(showGameOver, 500);
+                return;
+              }
+              ball.x = areaWidth/2;
+              ball.y = canvas.height-45;
+              ball.dx = 2 * (Math.random() > 0.5 ? 1 : -1);
+              ball.dy = -2;
+            }
+            // Paddle collision
+            let paddle = paddles[p];
+            if(collisionBallPaddle(ball, paddle)) {
+              ball.dy *= -1;
+              soundPaddle.play();
+            }
+            // Brick collisions
+            for(let i=0; i<bricks[p].length; i++) {
+              if(collisionBallBrick(ball, bricks[p][i])) {
+                ball.dy *= -1;
+                bricks[p][i].status = 0;
+                scores[p] += 10;
+                soundBrick.play();
+              }
+            }
+            // Win condition for each player
+            if(bricks[p].every(brick => !brick.status)) {
+              running = false;
+              winner = (p===0) ? "Player 1 Wins!" : "Player 2 Wins!";
+              soundWin.play();
+              setTimeout(showGameOver, 500);
+              return;
+            }
+          }
+        }
+      }
+      if(running) requestAnimationFrame(draw);
+    }
+
+    function showGameOver() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+      let imgToShow = null;
+      if (winImage.complete && winner && winner.toLowerCase().includes("win")) {
+        imgToShow = winImage;
+      } else if (loseImage.complete && winner && winner.toLowerCase().includes("lose")) {
+        imgToShow = loseImage;
+      } else if (winner && winner.toLowerCase().includes("draw")) {
+        // Optionally handle draw with a third image
+      }
+    
+      if (imgToShow && imgToShow.complete) {
+        // Get the image's natural dimensions
+        const imgW = imgToShow.naturalWidth;
+        const imgH = imgToShow.naturalHeight;
+      
+        // Define max height (e.g., 180 pixels)
+        const maxH = canvas.height * 0.8; // or just use a fixed value like 180
+        const scale = maxH / imgH;
+        const displayW = imgW * scale;
+        const displayH = imgH * scale;
+      
+        // Draw centered
+        ctx.drawImage(
+          imgToShow,
+          (canvas.width - displayW) / 2,
+          (canvas.height - displayH) / 2 - 40,
+          displayW,
+          displayH
+        );
+      }
+    
+      ctx.font = '40px Arial';
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.fillText(winner ? winner : "Game Over!", canvas.width/2, canvas.height/2 + 120);
+      ctx.font = '20px Arial';
+      ctx.fillText("Press F5 to restart", canvas.width/2, canvas.height/2 + 160);
+      ctx.textAlign = 'left';
+
+      db.ref(`rooms/${pin}`).remove(); // Remove the game room in Firebase
+    }
+
+    // --- Online Section (unchanged, for brevity) ---
+    function showOnlineSection(role) {
+      document.getElementById('container').style.display = 'none';
+      document.getElementById('online-section').style.display = 'block';
+      document.getElementById('online-host').style.display = (role === 'host') ? 'block' : 'none';
+      document.getElementById('online-join').style.display = (role === 'join') ? 'block' : 'none';
+      if (role === 'host') {
+        isHost = true;
+        localPlayerNum = 0;
+        pin = ('' + Math.floor(1000 + Math.random() * 9000));
+        document.getElementById('pinDisplay').textContent = pin;
+      } else {
+        isHost = false;
+        localPlayerNum = 1;
+      }
+    }
+    function copyPin() {
+      navigator.clipboard.writeText(pin);
+      alert('PIN copied!');
+    }
+    function joinOnline() {
+      pin = document.getElementById('pinInput').value.trim();
+      if (!/^\d{4}$/.test(pin)) {
+        document.getElementById('joinStatus').textContent = "Please enter a valid 4-digit PIN.";
+        return;
+      }
+      document.getElementById('joinStatus').textContent = "Connecting...";
+      isHost = false;
+      localPlayerNum = 1;
+    
+      setupConnectionAsJoiner();
+    }
+    
+    async function setupConnectionAsJoiner() {
+      peerConnection = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    
+      peerConnection.ondatachannel = event => {
+        dataChannel = event.channel;
+        setupDataChannel(dataChannel);
+      };
+    
+      peerConnection.onicecandidate = e => {
+        if (e.candidate) {
+          db.ref(`rooms/${pin}/joinerCandidates`).push(JSON.stringify(e.candidate));
+        }
+      };
+    
+      const snapshot = await db.ref(`rooms/${pin}/offer`).get();
+      if (!snapshot.exists()) {
+        document.getElementById('joinStatus').textContent = "Host not found or not ready.";
+        return;
+      }
+    
+      const offer = JSON.parse(snapshot.val());
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+      await db.ref(`rooms/${pin}/answer`).set(JSON.stringify(answer));
+    
+      db.ref(`rooms/${pin}/hostCandidates`).on('child_added', snapshot => {
+        const candidate = JSON.parse(snapshot.val());
+        peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      });
+    
+      document.getElementById('joinStatus').textContent = "Connected!";
+    }
+    
+    function setupDataChannel(channel) {
+      dataChannel = channel;
+      channel.onopen = () => {
+        console.log("Data channel open");
+        if (!isHost) startOnlineGame();
+      };
+    
+      channel.onmessage = e => {
+        const data = JSON.parse(e.data);
+        console.log("Received:", data);
+        if (data.type === "keydown") {
+          keys[data.key.toLowerCase()] = true;
+        }
+      };
+    }
+    
+    function startOnlineGame() {
+      console.log("Starting Online Game!");
+      document.getElementById('online-section').style.display = 'none';
+      canvas.style.display = 'block';
+      document.getElementById('controls').style.display = 'block';
+      mode = 'online';
+      resetGameVars();
+    
+      paddles.push(createPaddle((canvas.width - paddleWidth) / 2, canvas.height - 30));
+      balls.push(createBall(canvas.width / 2, canvas.height - 45));
+      bricks = createBricks(canvas.width);
+      scores.push(0);
+      lives.push(maxLives);
+      running = true;
+      requestAnimationFrame(draw);
+    
+      document.addEventListener('keydown', e => {
+        if (dataChannel?.readyState === "open") {
+          dataChannel.send(JSON.stringify({ type: "keydown", key: e.key }));
+        }
+      });
+    }
+
+  </script>
+</body>
+</html>
