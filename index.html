@@ -6,7 +6,6 @@
   <style>
     body { background: #161b22; color: #fff; font-family: 'Segoe UI', Arial, sans-serif; margin: 0; }
     #container { background: #22272e; border-radius: 24px; box-shadow: 0 8px 32px rgba(0,0,0,0.25); padding: 40px 32px 32px 32px; display: flex; flex-direction: column; align-items: center; max-width: 600px; width: 100%; margin: 40px auto 0 auto;}
-    .title { font-size: 2.4rem; font-weight: bold; margin-bottom: 24px; }
     .menu-btn { width: 320px; padding: 16px 0; margin: 0 auto 16px auto; font-size: 1.15rem; font-weight: 600; border: none; border-radius: 12px; background: #379afc; color: #fff; transition: background 0.18s, transform 0.12s; cursor: pointer; box-shadow: 0 2px 8px rgba(55,154,252,0.09);}
     .menu-btn:hover { background: #2563eb; transform: translateY(-2px) scale(1.03); color: #fff; }
     #controls { margin: 10px auto 0 auto; width: 600px; text-align: left; font-size: 1rem; color: #b1b7c4; display: none;}
@@ -16,12 +15,14 @@
   </style>
 </head>
 <body>
-  <div id="container">
+  <!-- Main Menu -->
+  <div id="container"> 
     <img src="img/cover.png" alt="Game Cover" id="cover-image">
     <button class="menu-btn" onclick="clickSound.play(); startGame('single')">Singleplayer</button>
     <button class="menu-btn" onclick="clickSound.play(); startGame('local-collab')">Local 2P Collaborative</button>
     <button class="menu-btn" onclick="clickSound.play(); startGame('local-comp')">Local 2P Competitive</button>
   </div>
+  <!-- Instructions -->
   <div id="controls">
     <b>Controls:</b><br>
     Player 1: <b>Left/Right Arrows</b> &nbsp; | &nbsp; Player 2: <b>A/D</b>
@@ -29,7 +30,6 @@
   <canvas id="gameCanvas" width="800" height="600"></canvas>
 
   <script>
-    // Remove online-related vars
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     let mode = null;
@@ -130,8 +130,17 @@
     document.addEventListener('keydown', function(e) { keys[e.key.toLowerCase()] = true; });
     document.addEventListener('keyup', function(e) { keys[e.key.toLowerCase()] = false; });
 
-    function drawPaddle(p, color='#09f', offsetX=0, offsetY=0) { ctx.fillStyle = color; ctx.fillRect(offsetX + p.x, offsetY + p.y, p.width, p.height); }
-    function drawBall(b, color='#fff', offsetX=0, offsetY=0) { ctx.beginPath(); ctx.arc(offsetX + b.x, offsetY + b.y, b.radius, 0, Math.PI*2); ctx.fillStyle = color; ctx.fill(); ctx.closePath(); }
+    function drawPaddle(p, color='#09f', offsetX=0, offsetY=0) { 
+      ctx.fillStyle = color; 
+      ctx.fillRect(offsetX + p.x, offsetY + p.y, p.width, p.height); 
+    }
+    function drawBall(b, color='#fff', offsetX=0, offsetY=0) { 
+      ctx.beginPath(); 
+      ctx.arc(offsetX + b.x, offsetY + b.y, b.radius, 0, Math.PI*2); 
+      ctx.fillStyle = color; 
+      ctx.fill(); 
+      ctx.closePath(); 
+    }
 
     function collisionBallPaddle(ball, paddle) {
       return (
@@ -175,8 +184,8 @@
     const soundWin    = new Sound('snd/win.mp3');
     const soundLose   = new Sound('snd/lose.mp3');
     const bgm = new Audio('snd/bgm.mp3');
-    bgm.loop = true; // Optional: loops the background music
-    bgm.volume = 0.1; // Optional: set volume (0.0 to 1.0)
+    bgm.loop = true; // loops the background music
+    bgm.volume = 0.1; // set volume (0.0 to 1.0)
 
     const clickSound = new Sound('snd/click.mp3');
 
@@ -185,7 +194,7 @@
     const loseImage = new Image();
     loseImage.src = 'img/lose.png';
 
-    // Main game loop (to be continued)
+    // Main game loop 
     function draw() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
@@ -263,8 +272,10 @@
           let ball = balls[0];
           ball.x += ball.dx;
           ball.y += ball.dy;
+        // Movement Inversion upon hitting the edge
           if(ball.x + ball.radius > canvas.width || ball.x - ball.radius < 0) ball.dx *= -1;
           if(ball.y - ball.radius < 0) ball.dy *= -1;
+        // If the ball touches the bottom of the screen, the player loses a life
           if(ball.y + ball.radius > canvas.height) {
             lives[0]--;
             if(lives[0] <= 0) { 
@@ -349,6 +360,7 @@
               running = false;
               winner = (p===0) ? "Player 1 Wins!" : "Player 2 Wins!";
               soundWin.play();
+              // Show gameover screen after 500ms
               setTimeout(showGameOver, 500);
               return;
             }
@@ -371,8 +383,6 @@
         imgToShow = winImage;
       } else if (loseImage.complete && winner && winner.toLowerCase().includes("lose")) {
         imgToShow = loseImage;
-      } else if (winner && winner.toLowerCase().includes("draw")) {
-        // Optionally handle draw with a third image
       }
     
       if (imgToShow && imgToShow.complete) {
@@ -380,8 +390,8 @@
         const imgW = imgToShow.naturalWidth;
         const imgH = imgToShow.naturalHeight;
       
-        // Define max height (e.g., 180 pixels)
-        const maxH = canvas.height * 0.85; // or just use a fixed value like 180
+        // Define max height 
+        const maxH = canvas.height * 0.85; 
         const scale = maxH / imgH;
         const displayW = imgW * scale;
         const displayH = imgH * scale;
